@@ -504,10 +504,10 @@ let (<<<) : term_judg -> Mode.t -> term_judg =
   fun f inner_mode -> fun outer_mode -> f (Mode.compose outer_mode inner_mode)
 
 (* A binding judgment [binder] expects a mode and an inner environment,
-   and returns an outer environment. [binder >> judg] computes
+   and returns an outer environment. [binder >>> judg] computes
    the inner environment as the environment returned by [judg]
    in the ambient mode. *)
-let (>>) : bind_judg -> term_judg -> term_judg =
+let (>>>) : bind_judg -> term_judg -> term_judg =
   fun binder term mode -> binder mode (term mode)
 
 (* Expression judgment:
@@ -526,9 +526,9 @@ let rec expression : Typedtree.expression -> term_judg =
          -------------------------------
          G |- let <bindings> in body : m
       *)
-      value_bindings rec_flag bindings >> expression body
+      value_bindings rec_flag bindings >>> expression body
     | Texp_letmodule (x, _, _, mexp, e) ->
-      module_binding (x, mexp) >> expression e
+      module_binding (x, mexp) >>> expression e
     | Texp_match (e, cases, _) ->
       (*
          (Gi; mi |- pi -> ei : m)^i
@@ -825,7 +825,7 @@ let rec expression : Typedtree.expression -> term_judg =
     | Texp_extension_constructor (_lid, pth) ->
       path pth <<< Dereference
     | Texp_open (od, e) ->
-      open_declaration od >> expression e
+      open_declaration od >>> expression e
 
 and binding_op : Typedtree.binding_op -> term_judg =
   fun bop ->
@@ -1052,7 +1052,7 @@ and class_expr : Typedtree.class_expr -> term_judg =
           list arg args <<< Dereference;
         ]
     | Tcl_let (rec_flag, bindings, _, ce) ->
-      value_bindings rec_flag bindings >> class_expr ce
+      value_bindings rec_flag bindings >>> class_expr ce
     | Tcl_constraint (ce, _, _, _, _) ->
         class_expr ce
     | Tcl_open (_, ce) ->
