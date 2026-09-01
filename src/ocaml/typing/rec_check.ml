@@ -498,9 +498,9 @@ let join : term_judg list -> term_judg =
 let empty = fun _ -> Env.empty
 
 (* A judgment [judg] takes a mode from the context as input, and
-   returns an environment. The judgment [judg << m], given a mode [m']
+   returns an environment. The judgment [judg <<< m], given a mode [m']
    from the context, evaluates [judg] in the composed mode [m'[m]]. *)
-let (<<) : term_judg -> Mode.t -> term_judg =
+let (<<<) : term_judg -> Mode.t -> term_judg =
   fun f inner_mode -> fun outer_mode -> f (Mode.compose outer_mode inner_mode)
 
 (* A binding judgment [binder] expects a mode and an inner environment,
@@ -550,9 +550,9 @@ let rec expression : Typedtree.expression -> term_judg =
         G1 + G2 + G3 |- for _ = low to high do body done: m
       *)
       join [
-        expression low << Dereference;
-        expression high << Dereference;
-        expression body << Guard;
+        expression low <<< Dereference;
+        expression high <<< Dereference;
+        expression body <<< Guard;
       ]
     | Texp_constant _ ->
       empty
@@ -562,9 +562,9 @@ let rec expression : Typedtree.expression -> term_judg =
         -----------------------
         G |- new c: m
       *)
-      path pth << Dereference
+      path pth <<< Dereference
     | Texp_instvar (self_path, pth, _inst_var) ->
-        join [path self_path << Dereference; path pth]
+        join [path self_path <<< Dereference; path pth]
     | Texp_apply ({exp_desc = Texp_ident (_, _, vd)}, [_, Some arg])
       when is_ref vd ->
       (*
@@ -572,7 +572,7 @@ let rec expression : Typedtree.expression -> term_judg =
         ------------------
         G |- ref e: m
       *)
-      expression arg << Guard
+      expression arg <<< Guard
     | Texp_apply (e, args)  ->
         let arg (_, eo) = option expression eo in
         let app_mode = if List.exists is_abstracted_arg args
@@ -582,9 +582,9 @@ let rec expression : Typedtree.expression -> term_judg =
             Guard
           else Dereference
         in
-        join [expression e; list arg args] << app_mode
+        join [expression e; list arg args] <<< app_mode
     | Texp_tuple exprs ->
-      list expression exprs << Guard
+      list expression exprs <<< Guard
     | Texp_array exprs ->
       (*
       let array_mode = match Typeopt.array_kind exp with
@@ -605,12 +605,12 @@ let rec expression : Typedtree.expression -> term_judg =
            will do for now. *)
         Guard
       in
-      list expression exprs << array_mode
+      list expression exprs <<< array_mode
     | Texp_construct (_, desc, exprs) ->
       let access_constructor =
         match desc.cstr_tag with
         | Cstr_extension (pth, _) ->
-          path pth << Dereference
+          path pth <<< Dereference
         | _ -> empty
       in
       let m' = match desc.cstr_tag with
@@ -621,7 +621,7 @@ let rec expression : Typedtree.expression -> term_judg =
       in
       join [
         access_constructor;
-        list expression exprs << m'
+        list expression exprs <<< m'
       ]
     | Texp_variant (_, eo) ->
       (*
@@ -629,7 +629,7 @@ let rec expression : Typedtree.expression -> term_judg =
         ------------------   -----------
         G |- `A e: m         [] |- `A: m
       *)
-      option expression eo << Guard
+      option expression eo <<< Guard
     | Texp_record { fields = es; extended_expression = eo;
                     representation = rep } ->
         let field_mode = match rep with
@@ -643,8 +643,8 @@ let rec expression : Typedtree.expression -> term_judg =
           | Overridden (_, e) -> expression e
         in
         join [
-          array field es << field_mode;
-          option expression eo << Dereference
+          array field es <<< field_mode;
+          option expression eo <<< Dereference
         ]
     | Texp_ifthenelse (cond, ifso, ifnot) ->
       (*
@@ -658,7 +658,7 @@ let rec expression : Typedtree.expression -> term_judg =
       `match c with true -> e1 | false -> e2`
       *)
       join [
-        expression cond << Dereference;
+        expression cond <<< Dereference;
         expression ifso;
         option expression ifnot;
       ]
@@ -674,8 +674,8 @@ let rec expression : Typedtree.expression -> term_judg =
         a boxed float and it is unboxed on assignment.
       *)
       join [
-        expression e1 << Dereference;
-        expression e2 << Dereference;
+        expression e1 <<< Dereference;
+        expression e2 <<< Dereference;
       ]
     | Texp_sequence (e1, e2) ->
       (*
@@ -687,7 +687,7 @@ let rec expression : Typedtree.expression -> term_judg =
         Note: `e1; e2` is treated in the same way as `let _ = e1 in e2`
       *)
       join [
-        expression e1 << Guard;
+        expression e1 <<< Guard;
         expression e2;
       ]
     | Texp_while (cond, body) ->
@@ -698,8 +698,8 @@ let rec expression : Typedtree.expression -> term_judg =
         G1 + G2 |- while cond do body done: m
       *)
       join [
-        expression cond << Dereference;
-        expression body << Guard;
+        expression cond <<< Dereference;
+        expression body <<< Guard;
       ]
     | Texp_send (e1, _) ->
       (*
@@ -708,7 +708,7 @@ let rec expression : Typedtree.expression -> term_judg =
         G |- e#x: m
       *)
       join [
-        expression e1 << Dereference
+        expression e1 <<< Dereference
       ]
     | Texp_field (e, _, _) ->
       (*
@@ -716,7 +716,7 @@ let rec expression : Typedtree.expression -> term_judg =
         -----------------------
         G |- e.x: m
       *)
-      expression e << Dereference
+      expression e <<< Dereference
     | Texp_setinstvar (pth,_,_,e) ->
       (*
         G |- e: m[Dereference]
@@ -724,8 +724,8 @@ let rec expression : Typedtree.expression -> term_judg =
         G |- x <- e: m
       *)
       join [
-        path pth << Dereference;
-        expression e << Dereference;
+        path pth <<< Dereference;
+        expression e <<< Dereference;
       ]
     | Texp_letexception ({ext_id}, e) ->
       (* G |- e: m
@@ -741,7 +741,7 @@ let rec expression : Typedtree.expression -> term_judg =
 
         Note: `assert e` is treated just as if `assert` was a function.
       *)
-      expression e << Dereference
+      expression e <<< Dereference
     | Texp_pack mexp ->
       (*
         G |- M: m
@@ -779,8 +779,8 @@ let rec expression : Typedtree.expression -> term_judg =
       *)
       let field (_, _, arg) = expression arg in
       join [
-        path pth << Dereference;
-        list field fields << Dereference;
+        path pth <<< Dereference;
+        list field fields <<< Dereference;
       ]
     | Texp_function { cases } ->
       (*
@@ -793,7 +793,7 @@ let rec expression : Typedtree.expression -> term_judg =
          the final environment.
       *)
       let case_env c m = fst (case c m) in
-      list case_env cases << Delay
+      list case_env cases <<< Delay
     | Texp_lazy e ->
       (*
         G |- e: m[Delay]
@@ -808,12 +808,12 @@ let rec expression : Typedtree.expression -> term_judg =
         | `Other ->
           Delay
       in
-      expression e << lazy_mode
+      expression e <<< lazy_mode
     | Texp_letop{let_; ands; body; _} ->
         let case_env c m = fst (case c m) in
         join [
-          list binding_op (let_ :: ands) << Dereference;
-          case_env body << Delay
+          list binding_op (let_ :: ands) <<< Dereference;
+          case_env body <<< Delay
         ]
     | Texp_unreachable ->
       (*
@@ -823,7 +823,7 @@ let rec expression : Typedtree.expression -> term_judg =
       empty
     | Texp_hole -> empty
     | Texp_extension_constructor (_lid, pth) ->
-      path pth << Dereference
+      path pth <<< Dereference
     | Texp_open (od, e) ->
       open_declaration od >> expression e
 
@@ -837,7 +837,7 @@ and class_structure : Typedtree.class_structure -> term_judg =
 and class_field : Typedtree.class_field -> term_judg =
   fun cf -> match cf.cf_desc with
     | Tcf_inherit (_, ce, _super, _inh_vars, _inh_meths) ->
-      class_expr ce << Dereference
+      class_expr ce <<< Dereference
     | Tcf_val (_lab, _mut, _, cfk, _) ->
       class_field_kind cfk
     | Tcf_method (_, _, cfk) ->
@@ -845,7 +845,7 @@ and class_field : Typedtree.class_field -> term_judg =
     | Tcf_constraint _ ->
       empty
     | Tcf_initializer e ->
-      expression e << Dereference
+      expression e <<< Dereference
     | Tcf_attribute _ ->
       empty
 
@@ -854,7 +854,7 @@ and class_field_kind : Typedtree.class_field_kind -> term_judg =
     | Tcfk_virtual _ ->
       empty
     | Tcfk_concrete (_, e) ->
-      expression e << Dereference
+      expression e <<< Dereference
 
 and modexp : Typedtree.module_expr -> term_judg =
   fun mexp -> match mexp.mod_desc with
@@ -863,14 +863,14 @@ and modexp : Typedtree.module_expr -> term_judg =
     | Tmod_structure s ->
       structure s
     | Tmod_functor (_, e) ->
-      modexp e << Delay
+      modexp e <<< Delay
     | Tmod_apply (f, p, _) ->
       join [
-        modexp f << Dereference;
-        modexp p << Dereference;
+        modexp f <<< Dereference;
+        modexp p <<< Dereference;
       ]
     | Tmod_apply_unit f ->
-      modexp f << Dereference
+      modexp f <<< Dereference
     | Tmod_constraint (mexp, _, _, coe) ->
       let rec coercion coe k = match coe with
         | Tcoerce_none ->
@@ -888,9 +888,9 @@ and modexp : Typedtree.module_expr -> term_judg =
         | Tcoerce_alias (_, pth, coe) ->
           (* Alias coercions ignore their arguments, but they evaluate
              their alias module 'pth' under another coercion. *)
-          coercion coe (fun m -> path pth << m)
+          coercion coe (fun m -> path pth <<< m)
       in
-      coercion coe (fun m -> modexp mexp << m)
+      coercion coe (fun m -> modexp mexp <<< m)
     | Tmod_unpack (e, _) ->
       expression e
     | Tmod_hole -> fun _ -> Env.empty
@@ -915,11 +915,11 @@ and path : Path.t -> term_judg =
     | Path.Pident x ->
         single x
     | Path.Pdot (t, _) ->
-        path t << Dereference
+        path t <<< Dereference
     | Path.Papply (f, p) ->
         join [
-          path f << Dereference;
-          path p << Dereference;
+          path f <<< Dereference;
+          path p <<< Dereference;
         ]
     | Path.Pextra_ty (p, _extra) ->
         path p
@@ -951,7 +951,7 @@ and structure_item : Typedtree.structure_item -> bind_judg =
 
         The expression `e` is treated in the same way as let _ = e
       *)
-      let judg_e = expression e << Guard in
+      let judg_e = expression e <<< Guard in
       Env.join (judg_e m) env
     | Tstr_value (rec_flag, bindings) ->
       value_bindings rec_flag bindings m env
@@ -1006,10 +1006,10 @@ and module_binding : (Ident.t option * Typedtree.module_expr) -> bind_judg =
       *)
       let judg_E, env =
         match id with
-        | None -> modexp mexp << Guard, env
+        | None -> modexp mexp <<< Guard, env
         | Some id ->
           let mM, env = Env.take id env in
-          let judg_E = modexp mexp << (Mode.join mM Guard) in
+          let judg_E = modexp mexp <<< (Mode.join mM Guard) in
           judg_E, env
       in
       Env.join (judg_E m) env
@@ -1027,10 +1027,10 @@ and recursive_module_bindings
     let binding (mid, mexp) m =
       let judg_E =
         match mid with
-        | None -> modexp mexp << Guard
+        | None -> modexp mexp <<< Guard
         | Some mid ->
           let mM = Env.find mid env in
-          modexp mexp << (Mode.join mM Guard)
+          modexp mexp <<< (Mode.join mM Guard)
       in
       Env.remove_list mids (judg_E m)
     in
@@ -1039,17 +1039,17 @@ and recursive_module_bindings
 and class_expr : Typedtree.class_expr -> term_judg =
   fun ce -> match ce.cl_desc with
     | Tcl_ident (pth, _, _) ->
-        path pth << Dereference
+        path pth <<< Dereference
     | Tcl_structure cs ->
         class_structure cs
     | Tcl_fun (_, _, args, ce, _) ->
         let ids = List.map fst args in
-        remove_ids ids (class_expr ce << Delay)
+        remove_ids ids (class_expr ce <<< Delay)
     | Tcl_apply (ce, args) ->
         let arg (_label, eo) = option expression eo in
         join [
-          class_expr ce << Dereference;
-          list arg args << Dereference;
+          class_expr ce <<< Dereference;
+          list arg args <<< Dereference;
         ]
     | Tcl_let (rec_flag, bindings, _, ce) ->
       value_bindings rec_flag bindings >> class_expr ce
@@ -1167,7 +1167,7 @@ and case
        G - p; m[mp] |- (p (when g)? -> e) : m
     *)
     let judg = join [
-        option expression c_guard << Dereference;
+        option expression c_guard <<< Dereference;
         expression c_rhs;
       ] in
     (fun m ->
